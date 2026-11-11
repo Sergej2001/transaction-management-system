@@ -8,6 +8,63 @@ const initialForm = {
   amount: '',
 };
 
+function getToday() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function validateForm(form) {
+  const errors = {};
+  const date = form.transactionDate;
+  const parsedDate = new Date(`${date}T00:00:00Z`);
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+    !Number.isFinite(parsedDate.getTime()) ||
+    parsedDate.toISOString().slice(0, 10) !== date ||
+    date.startsWith('0000')
+  ) {
+    errors.transactionDate = 'Enter a valid transaction date.';
+  } else if (date > getToday()) {
+    errors.transactionDate = 'Transaction date cannot be in the future.';
+  }
+
+  if (!/^[0-9]{4}-[0-9]{4}-[0-9]{4}$/.test(form.accountNumber.trim())) {
+    errors.accountNumber = 'Use the format 1234-5678-9012.';
+  }
+
+  const name = form.accountHolderName.trim();
+
+  if (!name) {
+    errors.accountHolderName = 'Account holder name is required.';
+  } else if (name.length > 100) {
+    errors.accountHolderName = 'Name must contain at most 100 characters.';
+  } else if (
+    !/\p{L}/u.test(name) ||
+    !/^[\p{L}\p{M} .,'’-]+$/u.test(name)
+  ) {
+    errors.accountHolderName =
+      'Enter a valid name. Numbers and special symbols are not allowed.';
+  }
+
+  const amount = form.amount.trim();
+
+  if (!amount) {
+    errors.amount = 'Amount is required.';
+  } else if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+    errors.amount = 'Amount must be greater than zero.';
+  } else if (!/^\d{1,9}(\.\d{1,2})?$/.test(amount)) {
+    errors.amount =
+      'Use at most 9 whole-number digits and 2 decimal places.';
+  }
+
+  return errors;
+}
+
 export default function AddTransactionModal({ onClose, onCreated }) {
   const dialogRef = useRef(null);
   const submittingRef = useRef(false);
@@ -38,6 +95,8 @@ export default function AddTransactionModal({ onClose, onCreated }) {
       ...previous,
       [name]: '',
     }));
+
+    setError('');
   }
 
   async function handleSubmit(event) {
@@ -47,24 +106,28 @@ export default function AddTransactionModal({ onClose, onCreated }) {
       return;
     }
 
-    const amount = Number(form.amount);
+    const errors = validateForm(form);
+    setFieldErrors(errors);
+    setError('');
 
-    if (form.amount.trim() === '' || !Number.isFinite(amount)) {
-      setFieldErrors({ amount: 'Enter a valid amount.' });
+    const firstInvalidField = Object.keys(errors)[0];
+
+    if (firstInvalidField) {
+      dialogRef.current
+        .querySelector(`[name="${firstInvalidField}"]`)
+        ?.focus();
       return;
     }
 
     submittingRef.current = true;
     setSaving(true);
-    setError('');
-    setFieldErrors({});
 
     try {
       const transaction = await createTransaction({
         transactionDate: form.transactionDate,
         accountNumber: form.accountNumber.trim(),
         accountHolderName: form.accountHolderName.trim(),
-        amount,
+        amount: Number(form.amount),
       });
 
       onCreated(transaction);
@@ -74,6 +137,7 @@ export default function AddTransactionModal({ onClose, onCreated }) {
           ? 'Unable to reach the server. Check your connection.'
           : requestError.message
       );
+
       setFieldErrors(requestError.fieldErrors || {});
     } finally {
       submittingRef.current = false;
@@ -81,12 +145,15 @@ export default function AddTransactionModal({ onClose, onCreated }) {
     }
   }
 
-  function handleCancel(event) {
-    event.preventDefault();
-
+  function handleClose() {
     if (!submittingRef.current) {
       onClose();
     }
+  }
+
+  function handleCancel(event) {
+    event.preventDefault();
+    handleClose();
   }
 
   return (
@@ -107,13 +174,13 @@ export default function AddTransactionModal({ onClose, onCreated }) {
           className="close-button"
           aria-label="Close dialog"
           disabled={saving}
-          onClick={onClose}
+          onClick={handleClose}
         >
           ×
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} aria-busy={saving}>
+      <form onSubmit={handleSubmit} aria-busy={saving} noValidate>
         <fieldset className="form-fields" disabled={saving}>
           <div className="form-field">
             <label htmlFor="transactionDate">Transaction Date</label>
@@ -121,6 +188,7 @@ export default function AddTransactionModal({ onClose, onCreated }) {
               id="transactionDate"
               name="transactionDate"
               type="date"
+              max={getToday()}
               value={form.transactionDate}
               onChange={handleChange}
               required
@@ -131,7 +199,7 @@ export default function AddTransactionModal({ onClose, onCreated }) {
               }
             />
             {fieldErrors.transactionDate && (
-              <span id="date-error" className="field-error">
+              <span id="date-error" className="field-error" role="alert">
                 {fieldErrors.transactionDate}
               </span>
             )}
@@ -153,7 +221,7 @@ export default function AddTransactionModal({ onClose, onCreated }) {
               }
             />
             {fieldErrors.accountNumber && (
-              <span id="account-error" className="field-error">
+              <span id="account-error" className="field-error" role="alert">
                 {fieldErrors.accountNumber}
               </span>
             )}
@@ -175,7 +243,7 @@ export default function AddTransactionModal({ onClose, onCreated }) {
               }
             />
             {fieldErrors.accountHolderName && (
-              <span id="name-error" className="field-error">
+              <span id="name-error" className="field-error" role="alert">
                 {fieldErrors.accountHolderName}
               </span>
             )}
@@ -187,6 +255,8 @@ export default function AddTransactionModal({ onClose, onCreated }) {
               id="amount"
               name="amount"
               type="number"
+              min="0.01"
+              max="999999999.99"
               step="0.01"
               placeholder="0.00"
               value={form.amount}
@@ -198,7 +268,7 @@ export default function AddTransactionModal({ onClose, onCreated }) {
               }
             />
             {fieldErrors.amount && (
-              <span id="amount-error" className="field-error">
+              <span id="amount-error" className="field-error" role="alert">
                 {fieldErrors.amount}
               </span>
             )}
@@ -220,7 +290,7 @@ export default function AddTransactionModal({ onClose, onCreated }) {
             type="button"
             className="secondary-button"
             disabled={saving}
-            onClick={onClose}
+            onClick={handleClose}
           >
             Cancel
           </button>
