@@ -1,56 +1,27 @@
-import { useEffect, useState } from 'react';
-import { getTransactions } from './api/transactions';
+import { useState } from 'react';
 import AddTransactionModal from './components/AddTransactionModal';
+import TransactionTable from './components/TransactionTable';
+import useTransactions from './hooks/useTransactions';
 import './App.css';
 
-const amountFormatter = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
 export default function App() {
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [reloadCount, setReloadCount] = useState(0);
+  const {
+    transactions,
+    loading,
+    error,
+    reload,
+    addTransaction,
+  } = useTransactions();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  useEffect(() => {
-    let ignore = false;
+  function handleOpenModal() {
+    setSuccessMessage('');
+    setIsModalOpen(true);
+  }
 
-    async function loadTransactions() {
-      setLoading(true);
-      setError('');
-
-      try {
-        const data = await getTransactions();
-
-        if (!ignore) {
-          setTransactions(data);
-        }
-      } catch {
-        if (!ignore) {
-          setError(
-            'Unable to load transactions. Check that the backend is running and try again.'
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadTransactions();
-
-    return () => {
-      ignore = true;
-    };
-  }, [reloadCount]);
-
-  function handleTransactionCreated(transaction) {
-    setTransactions((previous) => [...previous, transaction]);
+  function handleTransactionCreated() {
     setIsModalOpen(false);
     setSuccessMessage('Transaction added successfully.');
   }
@@ -70,10 +41,7 @@ export default function App() {
           type="button"
           className="primary-button"
           disabled={loading || Boolean(error)}
-          onClick={() => {
-            setSuccessMessage('');
-            setIsModalOpen(true);
-          }}
+          onClick={handleOpenModal}
         >
           + Add Transaction
         </button>
@@ -107,7 +75,7 @@ export default function App() {
             <button
               type="button"
               className="retry-button"
-              onClick={() => setReloadCount((count) => count + 1)}
+              onClick={reload}
             >
               Try again
             </button>
@@ -115,49 +83,14 @@ export default function App() {
         ) : transactions.length === 0 ? (
           <p className="message">No transactions yet.</p>
         ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Transaction Date</th>
-                  <th scope="col">Account Number</th>
-                  <th scope="col">Account Holder Name</th>
-                  <th scope="col" className="amount">
-                    Amount
-                  </th>
-                  <th scope="col">Status</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {transactions.map((transaction, index) => (
-                  <tr key={index}>
-                    <td>{transaction.transactionDate}</td>
-                    <td className="account-number">
-                      {transaction.accountNumber}
-                    </td>
-                    <td>{transaction.accountHolderName}</td>
-                    <td className="amount">
-                      {amountFormatter.format(transaction.amount)}
-                    </td>
-                    <td>
-                      <span
-                        className={`status status-${transaction.status.toLowerCase()}`}
-                      >
-                        {transaction.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TransactionTable transactions={transactions} />
         )}
       </section>
 
       {isModalOpen && (
         <AddTransactionModal
           onClose={() => setIsModalOpen(false)}
+          onSubmit={addTransaction}
           onCreated={handleTransactionCreated}
         />
       )}

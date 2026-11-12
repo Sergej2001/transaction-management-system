@@ -27,6 +27,42 @@ Spring Boot, React and Vite. Transactions are stored in a CSV file.
 Exact frontend dependency versions are recorded in
 `frontend/package-lock.json`.
 
+## Project structure
+
+### Backend
+
+Paths below are relative to `backend/`.
+
+| Path | Responsibility |
+| --- | --- |
+| `src/main/java/backend/BackendApplication.java` | Starts the Spring Boot application |
+| `src/main/java/backend/controller/` | GET and POST HTTP endpoints |
+| `src/main/java/backend/dto/` | Request data and input validation |
+| `src/main/java/backend/service/` | Transaction creation and random status assignment |
+| `src/main/java/backend/repository/` | CSV reading and writing |
+| `src/main/java/backend/model/` | Transaction record and status enum |
+| `src/main/java/backend/exceptions/` | Validation and storage error responses |
+| `src/main/resources/application.properties` | Application configuration |
+| `src/test/java/backend/` | Application context, validation, repository and API tests |
+| `data/transactions.csv` | Initial sample data and persisted transactions |
+
+### Frontend
+
+Paths below are relative to `frontend/`.
+
+| Path | Responsibility |
+| --- | --- |
+| `src/main.jsx` | React entry point |
+| `src/App.jsx` | Connects the transaction list, modal and page messages |
+| `src/components/TransactionTable.jsx` | Displays transactions and formats amounts |
+| `src/components/AddTransactionModal.jsx` | Manages form input, submission state and field errors |
+| `src/hooks/useTransactions.js` | Loads and creates transactions and maintains the list |
+| `src/api/transactions.js` | Sends HTTP requests and handles API error responses |
+| `src/utils/transactionValidation.js` | Frontend validation rules and local date helper |
+| `src/App.css` | Page, table and modal styles |
+| `src/index.css` | Global styles |
+| `vite.config.js` | Development server and backend proxy configuration |
+
 ## Prerequisites
 
 Install the following software before starting:
@@ -493,8 +529,21 @@ The backend separates responsibilities into:
 - **Exception handler:** Consistent validation and storage error responses.
 - **Model:** Transaction data and available statuses.
 
-The frontend separates API requests, the transaction page,
-and the transaction-creation modal.
+The frontend separates presentation, state management and HTTP requests:
+
+- `App` connects the page components and controls modal visibility.
+- `TransactionTable` displays the supplied transactions.
+- `AddTransactionModal` manages form values, submission state and errors.
+- `useTransactions` owns the transaction list, loading state and load errors.
+  It also creates transactions through the API and appends successful
+  responses to the list.
+- The API module handles HTTP requests.
+- The validation module checks form values before submission.
+
+The hook is called once in `App`. Its creation function is passed to the
+modal, so both components work with the same transaction list.
+
+Backend validation remains authoritative.
 
 ## Limitations
 
